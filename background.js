@@ -76,8 +76,8 @@ chrome.tabs.onRemoved.addListener((tabId, _changeInfo, _tab) => {
   const tab = cache[tabId];
   if (tab) {
     const tabUrl = tab.url;
-    delete cache[tabId];
     duplicatesCache[tabUrl].delete(tabId);
+    delete cache[tabId];
   }
 
   checkDuplicates();
