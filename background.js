@@ -27,7 +27,11 @@ async function loadAllTabs() {
 }
 
 async function checkDuplicates() {
-  for (const tabIds of Object.values(duplicatesCache)) {
+  for (const [tabUrl, tabIds] of Object.entries(duplicatesCache)) {
+    if (tabUrl.startsWith("chrome://")) {
+      continue;
+    }
+
     if (tabIds.size > 1) {
       for (const tabId of tabIds) {
         chrome.scripting.executeScript({
@@ -75,6 +79,7 @@ chrome.tabs.onRemoved.addListener((tabId, _changeInfo, _tab) => {
     delete cache[tabId];
     duplicatesCache[tabUrl].delete(tabId);
   }
+
   checkDuplicates();
 });
 
