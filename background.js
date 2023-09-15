@@ -30,76 +30,42 @@ async function loadAllTabs() {
   }
 }
 
-async function checkDuplicates(url) {
-  function checkUrl(tabIds) {
-    if (tabIds.size > 1) {
-      for (const tabId of tabIds) {
-        chrome.scripting.executeScript({
-          target: { tabId: tabId },
-          func: () => {
-            if (!document.title.includes("[D] ")) {
-              document.title = "[D] " + document.title;
-            }
-          },
-        });
-      }
-    } else {
-      for (const tabId of tabIds) {
-        const tab = cache[tabId];
-        if (tab && tab.title.includes("[D] ")) {
-          chrome.scripting.executeScript({
-            target: { tabId: tabId },
-            func: () => {
-              document.title = document.title.replace("[D] ", "");
-            },
-          });
-        }
-      }
-    }
-  }
-
-  if (url) {
-    checkUrl(duplicatesCache[url]);
-  }
-
-  for (const [_, tabIds] of Object.entries(duplicatesCache)) {
-    checkUrl(tabIds);
-  }
-}
+chrome.tabs.onCreated.addListener((tab) => {
+  cache[tab.id] = tab;
+});
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (!tab.url || tab.url.startsWith("chrome://")) {
+  console.log(tabId, changeInfo);
+  const isUrlChange = changeInfo.hasOwnProperty("url");
+  if (!isUrlChange) {
     return;
   }
 
   const oldUrl = cache[tabId]?.url;
-  cache[tabId] = tab;
-  if (oldUrl && tab.url != oldUrl) {
-    duplicatesCache[oldUrl].delete(tabId);
+  const newUrl = changeInfo.url;
+  if (newUrl.startsWith("chrome://")) {
+    return;
   }
-  duplicatesCache[tab.url].add(tabId);
 
-  titleChanged = changeInfo.title && !changeInfo.title.startsWith("[D] ");
+  cache[tabId] = tab;
+  duplicatesCache[oldUrl].delete(tabId);
+  duplicatesCache[newUrl].add(tabId);
 
-  if (
-    changeInfo.status == "complete" ||
-    (tab.status == "complete" && titleChanged)
-  ) {
-    checkDuplicates(tab.url);
+  const duplicates = new Set(duplicatesCache[tab.url]);
+  if (duplicates.size > 1) {
+    duplicates.delete(tabId);
+    chrome.tabs.remove(Array.from(duplicates));
   }
 });
 
 chrome.tabs.onRemoved.addListener((tabId, _changeInfo, _tab) => {
   const tab = cache[tabId];
-  if (tab) {
-    const tabUrl = tab.url;
-    duplicatesCache[tabUrl].delete(tabId);
-    delete cache[tabId];
-    checkDuplicates(tabUrl);
-  } else {
-    checkDuplicates();
+  if (!tab) {
+    return;
   }
+
+  duplicatesCache[tab.url].delete(tabId);
+  delete cache[tabId];
 });
 
 loadAllTabs();
-checkDuplicates();
