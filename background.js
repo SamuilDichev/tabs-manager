@@ -72,8 +72,13 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     return;
   }
 
+  const oldUrl = cache[tabId]?.url;
   cache[tabId] = tab;
+  if (oldUrl && tab.url != oldUrl) {
+    duplicatesCache[oldUrl].delete(tabId);
+  }
   duplicatesCache[tab.url].add(tabId);
+
   titleChanged = changeInfo.title && !changeInfo.title.startsWith("[D] ");
 
   if (
