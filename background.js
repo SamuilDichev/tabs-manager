@@ -19,20 +19,19 @@ const cache = {};
 const duplicatesCache = new DefaultDict(Set);
 
 async function loadAllTabs() {
-  return chrome.tabs.query({}, (tabs) => {
-    for (const tab of tabs) {
-      cache[tab.id] = tab;
-      duplicatesCache[tab.url].add(tab.id);
+  const tabs = await chrome.tabs.query({});
+  for (const tab of tabs) {
+    if (!tab.url || tab.url.startsWith("chrome://")) {
+      continue;
     }
-  });
+
+    cache[tab.id] = tab;
+    duplicatesCache[tab.url].add(tab.id);
+  }
 }
 
 async function checkDuplicates(url) {
-  function checkUrl(tabUrl, tabIds) {
-    if (tabUrl.startsWith("chrome://")) {
-      return;
-    }
-
+  function checkUrl(tabIds) {
     if (tabIds.size > 1) {
       for (const tabId of tabIds) {
         chrome.scripting.executeScript({
@@ -60,15 +59,19 @@ async function checkDuplicates(url) {
   }
 
   if (url) {
-    checkUrl(url, duplicatesCache[url]);
+    checkUrl(duplicatesCache[url]);
   }
 
-  for (const [tabUrl, tabIds] of Object.entries(duplicatesCache)) {
-    checkUrl(tabUrl, tabIds);
+  for (const [_, tabIds] of Object.entries(duplicatesCache)) {
+    checkUrl(tabIds);
   }
 }
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (!tab.url || tab.url.startsWith("chrome://")) {
+    return;
+  }
+
   cache[tabId] = tab;
   duplicatesCache[tab.url].add(tabId);
   titleChanged = changeInfo.title && !changeInfo.title.startsWith("[D] ");
@@ -93,4 +96,5 @@ chrome.tabs.onRemoved.addListener((tabId, _changeInfo, _tab) => {
   }
 });
 
-loadAllTabs().then(() => checkDuplicates());
+loadAllTabs();
+checkDuplicates();
