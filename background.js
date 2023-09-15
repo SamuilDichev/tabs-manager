@@ -32,10 +32,14 @@ async function loadAllTabs() {
 
 chrome.tabs.onCreated.addListener((tab) => {
   cache[tab.id] = tab;
+  const duplicates = duplicatesCache[tab.pendingUrl];
+  if (!tab.active && duplicates.size > 0) {
+    chrome.tabs.remove(tab.id);
+    chrome.tabs.move(Array.from(duplicates), {index: tab.index});
+  }
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  console.log(tabId, changeInfo);
   const isUrlChange = changeInfo.hasOwnProperty("url");
   if (!isUrlChange) {
     return;
